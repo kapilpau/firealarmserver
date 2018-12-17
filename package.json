@@ -1,0 +1,19 @@
+{
+  "name": "firealarmserver",
+  "version": "1.0.0",
+  "description": "Server of mobile and web apps for universal fire alarms",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kapilpau/firealarmserver.git"
+  },
+  "author": "Kapil Pau",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kapilpau/firealarmserver/issues"
+  },
+  "homepage": "https://github.com/kapilpau/firealarmserver#readme"
+}

@@ -61,12 +61,13 @@ app.post('/login', function (req, res) {
         }
     }).then(function (usr) {
         console.log(JSON.stringify(usr));
-        if (req.body.password === usr.dataValues.password){
+        if (req.body.password === usr.password){
             console.log("Correct");
             res.setHeader('Content-Type', 'application/json');
             res.status(200).send(JSON.stringify(usr.dataValues));
         } else {
-            res.status(200).send("Incorrect");
+            console.log("Incorrect");
+            res.status(400).send("Incorrect");
         }
     })
     .catch(function (error) {

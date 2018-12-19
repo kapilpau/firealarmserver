@@ -64,11 +64,11 @@ app.post('/login', function (req, res) {
         if (req.body.password === usr.password){
             console.log("Correct");
             res.setHeader('Content-Type', 'application/json');
-            res.statusText = JSON.stringify(usr);
-            res.status(200).end();
+            // res.statusText = JSON.stringify(usr);
+            res.status(200).end(JSON.stringify(usr));
         } else {
             res.statusText = "Incorrect";
-            res.status(400).send("Incorrect");
+            res.status(400).end("Incorrect");
         }
     })
     .catch(function (error) {

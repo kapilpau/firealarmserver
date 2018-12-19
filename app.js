@@ -68,9 +68,10 @@ app.post('/login', function (req, res) {
             res.status(200).send("Incorrect");
         }
     })
-        .catch(function (error) {
-
-        });
+    .catch(function (error) {
+        console.log(JSON.stringify(error));
+        res.status(500).end();
+    });
 });
 
 app.post('/signup', function (req, res) {

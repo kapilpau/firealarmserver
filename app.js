@@ -60,6 +60,7 @@ app.post('/login', function (req, res) {
             username: req.body.username
         }
     }).then(function (usr) {
+        console.log(JSON.stringify(usr));
         if (req.body.password === usr.dataValues.password){
             console.log("Correct");
             res.setHeader('Content-Type', 'application/json');

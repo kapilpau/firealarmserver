@@ -65,15 +65,14 @@ app.post('/login', function (req, res) {
             console.log("Correct");
             res.setHeader('Content-Type', 'application/json');
             // res.statusText = JSON.stringify(usr);
-            res.status(200).end(JSON.stringify(usr));
+            res.status(200).end(JSON.stringify({user: usr, message: "Correct"}));
         } else {
-            res.statusText = "Incorrect";
-            res.status(400).end("Incorrect");
+            res.status(400).end(JSON.stringify({message: "Incorrect"}));
         }
     })
     .catch(function (error) {
         console.log(JSON.stringify(error));
-        res.status(500).end();
+        res.status(400).end(JSON.stringify({message: "User doesn't exist"}));
     });
 });
 

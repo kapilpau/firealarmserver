@@ -82,11 +82,21 @@ app.post('/signup', function (req, res) {
     {
         res.status(400).send("Missing options");
     }
-    User.create({username: req.body.username, email: req.body.email, password: req.body.password, name: req.body.name})
-        .then(function () {
-            res.status(200).send("Done");
-        })
-        .catch(function () {
-            res.status(500).send("Something went wrong");
-        });
+    User.findOne({
+        where: {
+            username: req.body.username
+        }
+    }).then(usr => {
+      if (usr.length === 0) {
+        User.create({username: req.body.username, email: req.body.email, password: req.body.password, name: req.body.name})
+            .then(function (user) {
+                res.status(200).send(JSON.stringify({user: usr, message: "Correct"});
+            })
+            .catch(function () {
+                res.status(500).send("Something went wrong");
+            });
+        }  else {
+          res.status(400).send(JSON.stringify({message: "User already exists"}))
+        }
+    });
 });

@@ -91,13 +91,13 @@ app.post('/signup', function (req, res) {
         User.create({username: req.body.username, email: req.body.email, password: req.body.password, name: req.body.name})
             .then(function (user) {
                 console.log(user);
-                res.status(200).send(JSON.stringify({user: user, message: "Correct"});
+                res.status(200).send(JSON.stringify({user: user, message: "Correct"}));
             })
             .catch(function () {
                 res.status(500).send("Something went wrong");
             });
         }  else {
-          res.status(400).send(JSON.stringify({message: "User already exists"}))
+          res.status(400).send(JSON.stringify({message: "User already exists"}));
         }
     });
 });

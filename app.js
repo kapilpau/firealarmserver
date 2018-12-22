@@ -90,7 +90,8 @@ app.post('/signup', function (req, res) {
       if (usr.length === 0) {
         User.create({username: req.body.username, email: req.body.email, password: req.body.password, name: req.body.name})
             .then(function (user) {
-                res.status(200).send(JSON.stringify({user: usr, message: "Correct"});
+                console.log(user);
+                res.status(200).send(JSON.stringify({user: user, message: "Correct"});
             })
             .catch(function () {
                 res.status(500).send("Something went wrong");

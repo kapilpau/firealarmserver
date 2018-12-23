@@ -87,10 +87,9 @@ app.post('/signup', function (req, res) {
             username: req.body.username
         }
     }).then(usr => {
-      if (usr.length === 0) {
+      if (!usr) {
         User.create({username: req.body.username, email: req.body.email, password: req.body.password, name: req.body.name})
             .then(function (user) {
-                console.log(user);
                 res.status(200).send(JSON.stringify({user: user, message: "Correct"}));
             })
             .catch(function () {

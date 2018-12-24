@@ -37,15 +37,25 @@ const User = sequelize.define('user', {
 });
 
 const Alarm = sequelize.define('alarm', {
+    uid: {type: Sequelize.STRING, allowNull: false},
     long: {type: Sequelize.DOUBLE, allowNull: false},
     lat: {type: Sequelize.DOUBLE, allowNull: false},
     status: {type: Sequelize.STRING, allowNull: false},
-    comments: {type: Sequelize.STRING, allowNull: false}
+    comments: {type: Sequelize.STRING, allowNull: true}
 });
 
-const Device = sequelize.define('device');
+Alarm.hasOne(User, {
+  foreignKey: {
+    name: 'user',
+    allowNull: false
+  }
+});
 
-Alarm.belongsToMany(User, {through: 'alarm_registrations'});
+// const AlarmRegs = sequelize.define('alarm_registrations', {
+//     comments: {type: Sequelize.STRING, allowNull: false}
+// })
+
+// Alarm.belongsToMany(User, {through: AlarmRegs});
 
 sequelize.sync()
     .then(function() {
@@ -99,4 +109,34 @@ app.post('/signup', function (req, res) {
           res.status(400).send(JSON.stringify({message: "User already exists"}));
         }
     });
+});
+
+app.post('/registerDevice', function(req, res) {
+    console.log(req.body);
+    let body = req.body;
+    if (!(body.user && body.loc.long && body.lat && body.uid && body.comments))
+    {
+      res.status(400).send("Missing options");
+    }
+    Alarm.create({
+      uid: body.uid,
+      long: body.loc.long,
+      lat: body.loc.lat,
+      status: 'idle',
+      comments: body.comments ? body.comments : null
+    }).then(alarm => {
+      res.status(200).send(JSON.stringify({message: "Created successfully", alarm: alarm}))
+    }).catch(err => {
+      res.status(500).send(JSON.stringify({message: "Catch": err: err}))
+    }).error(err => {
+      res.status(500).send(JSON.stringify({message: "Error": err: err}))
+    });
+});
+
+app.get('google428a6707452891c1.html', function() {
+  res.sendFile('verification.html');
+})
+
+app.get('/getDevices', function(req, res){
+
 });

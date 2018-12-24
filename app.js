@@ -2,6 +2,7 @@ const Sequelize = require('sequelize');
 const config = require('./config');
 const express = require('express');
 const app = express();
+const path = require('path');
 const bodyParser = require('body-parser');
 app.use( bodyParser.json() );
 app.use(bodyParser.urlencoded({
@@ -44,11 +45,9 @@ const Alarm = sequelize.define('alarm', {
     comments: {type: Sequelize.STRING, allowNull: true}
 });
 
-Alarm.hasOne(User, {
-  foreignKey: {
-    name: 'user',
-    allowNull: false
-  }
+User.hasOne(Alarm, {
+  foreignKey: 'user',
+  foreignKeyConstraint: true
 });
 
 // const AlarmRegs = sequelize.define('alarm_registrations', {
@@ -114,28 +113,32 @@ app.post('/signup', function (req, res) {
 app.post('/registerDevice', function(req, res) {
     console.log(req.body);
     let body = req.body;
-    if (!(body.user && body.loc.long && body.lat && body.uid && body.comments))
+    if (!(body.user && body.loc.lng && body.loc.lat && body.uid))
     {
-      res.status(400).send("Missing options");
+      res.status(400).send(JSON.stringify({message: "Missing options"}));
     }
     Alarm.create({
       uid: body.uid,
-      long: body.loc.long,
+      long: body.loc.lng,
       lat: body.loc.lat,
-      status: 'idle',
-      comments: body.comments ? body.comments : null
+      status: 'connected',
+      comments: body.comments !== "" ? body.comments : null,
+      user: body.user
     }).then(alarm => {
-      res.status(200).send(JSON.stringify({message: "Created successfully", alarm: alarm}))
+      // User.findOne({where:{id: body.user}}).then((user) => {
+        // alarm.setUser(user);
+        res.status(200).send(JSON.stringify({message: "Created successfully", alarm: alarm}))
+      // });
     }).catch(err => {
-      res.status(500).send(JSON.stringify({message: "Catch": err: err}))
+      res.status(500).send(JSON.stringify({message: "Catch", err: err}))
     }).error(err => {
-      res.status(500).send(JSON.stringify({message: "Error": err: err}))
+      res.status(500).send(JSON.stringify({message: "Error", err: err}))
     });
 });
 
-app.get('google428a6707452891c1.html', function() {
-  res.sendFile('verification.html');
-})
+app.get('/google428a6707452891c1.html', function(req, res) {
+  res.sendFile(path.join(__dirname,'./verification.html'));
+});
 
 app.get('/getDevices', function(req, res){
 

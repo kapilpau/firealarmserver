@@ -8,7 +8,10 @@ app.use( bodyParser.json() );
 app.use(bodyParser.urlencoded({
     extended: true
 }));
-
+const server = require('http').createServer(app);
+const io = require('socket.io')(server);
+const { Expo } = require('expo-server-sdk');
+let expo = new Expo();
 const sequelize = new Sequelize(config.dbName, config.dbUser, config.dbPass, {
     host: config.dbHost,
     dialect: 'mysql',
@@ -28,7 +31,8 @@ const User = sequelize.define('user', {
     username: {type: Sequelize.STRING, allowNull: false},
     email: {type: Sequelize.STRING, allowNull: false},
     password: {type: Sequelize.STRING, allowNull: false},
-    name: {type: Sequelize.STRING, allowNull: false}
+    name: {type: Sequelize.STRING, allowNull: false},
+    notificationKey: {type: Sequelize.STRING, allowNull: true}
 }, {
     instanceMethods: {
         getPass: function () {
@@ -39,10 +43,17 @@ const User = sequelize.define('user', {
 
 const Alarm = sequelize.define('alarm', {
     uid: {type: Sequelize.STRING, allowNull: false},
+    name: {type: Sequelize.STRING, allowNull: false},
     long: {type: Sequelize.DOUBLE, allowNull: false},
     lat: {type: Sequelize.DOUBLE, allowNull: false},
     status: {type: Sequelize.STRING, allowNull: false},
     comments: {type: Sequelize.STRING, allowNull: true}
+}, {
+  instanceMethods: {
+    getStatus: function () {
+      return this.status;
+    }
+  }
 });
 
 User.hasOne(Alarm, {
@@ -58,7 +69,7 @@ User.hasOne(Alarm, {
 
 sequelize.sync()
     .then(function() {
-            app.listen(config.port, () => console.log(`Fire Alarm server listening on port ${config.port}`));
+            server.listen(config.port, () => console.log(`Fire Alarm server listening on port ${config.port}`));
         }
     );
 
@@ -119,6 +130,7 @@ app.post('/registerDevice', function(req, res) {
     }
     Alarm.create({
       uid: body.uid,
+      name: body.name,
       long: body.loc.lng,
       lat: body.loc.lat,
       status: 'connected',
@@ -140,6 +152,64 @@ app.get('/google428a6707452891c1.html', function(req, res) {
   res.sendFile(path.join(__dirname,'./verification.html'));
 });
 
-app.get('/getDevices', function(req, res){
-
+app.get('/getDevices/:user', function(req, res){
+  Alarm.findAll({
+    where: {
+      user: req.params.user
+    }
+  }).then((alarms) => {
+    // console.log(alarms.length);
+    if (alarms.length === 0){
+      // console.log("foo");
+      res.status(200).send(JSON.stringify({message: "No alarms"}));
+    } else {
+      res.status(200).send(JSON.stringify({message: "Found", alarms: alarms}))
+    }
+  });
 });
+
+
+app.post('/triggerAlarm', function (req, res) {
+    Alarm.update({status: "triggered"}, {
+      where: {
+        id: req.body.alarm
+      }
+    })
+      .then(alarm => {
+        Alarm.findOne({
+          where: {
+            id: req.body.alarm
+          }
+        }).then(alarm => {
+          io.sockets.in(alarm.user).emit('message', JSON.stringify(alarm));
+          res.end();
+        })
+      });
+});
+
+io.on('connection', function(client) {
+    client.on('join', function(id) {
+      client.join(id);
+    });
+    client.on('leave', function(id) {
+      client.leave(id);
+    });
+});
+
+app.post('/addPushToken', function(req, res) {
+  User.update({notificationKey: req.body.value}, {
+    where: {
+      id: req.body.id
+    }
+  }).then(() => res.end());
+})
+
+app.post('/cancelAlarm', function(req, res) {
+  Alarm.update({status: 'connected'}, {
+    where: {
+      id: req.body.id
+    }
+  }).then((alarm) => {
+    res.end();
+  });
+})

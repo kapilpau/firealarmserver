@@ -3,7 +3,10 @@ const config = require('./config');
 const express = require('express');
 const app = express();
 const path = require('path');
+const ejs = require('ejs');
 const bodyParser = require('body-parser');
+app.set('view engine', 'ejs');
+app.use(express.static('static'));
 app.use( bodyParser.json() );
 app.use(bodyParser.urlencoded({
     extended: true
@@ -69,7 +72,7 @@ User.hasOne(Alarm, {
 
 sequelize.sync()
     .then(function() {
-            server.listen(config.port, () => console.log(`Fire Alarm server listening on port ${config.port}`));
+            server.listen(config.port, '0.0.0.0', () => console.log(`Fire Alarm server listening on port ${config.port}`));
         }
     );
 
@@ -149,7 +152,7 @@ app.post('/registerDevice', function(req, res) {
 });
 
 app.get('/google428a6707452891c1.html', function(req, res) {
-  res.sendFile(path.join(__dirname,'./verification.html'));
+  res.sendFile(path.join(__dirname,'./views/verification.html'));
 });
 
 app.get('/getDevices/:user', function(req, res){
@@ -212,4 +215,9 @@ app.post('/cancelAlarm', function(req, res) {
   }).then((alarm) => {
     res.end();
   });
+})
+
+
+app.get('/', function(req, res) {
+  res.sendFile(path.join(__dirname,'./views/index.html'));
 })

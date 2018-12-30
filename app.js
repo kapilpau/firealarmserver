@@ -89,6 +89,7 @@ app.get('/', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
+    console.log(`/login ${req.body}`);
     User.findOne({
         where: {
             username: req.body.username
@@ -111,7 +112,6 @@ app.post('/login', function (req, res) {
 });
 
 app.post('/signup', function (req, res) {
-    console.log(req.body);
     if (!(req.body.username && req.body.email && req.body.password && req.body.password && req.body.name))
     {
         res.status(400).send("Missing options");
@@ -136,7 +136,6 @@ app.post('/signup', function (req, res) {
 });
 
 app.post('/registerDevice', function(req, res) {
-    console.log(req.body);
     let body = req.body;
     if (!(body.user && body.loc.lng && body.loc.lat && body.uid))
     {
@@ -172,9 +171,7 @@ app.get('/getDevices/:user', function(req, res){
       user: req.params.user
     }
   }).then((alarms) => {
-    // console.log(alarms.length);
     if (alarms.length === 0){
-      // console.log("foo");
       res.status(200).send(JSON.stringify({message: "No alarms"}));
     } else {
       res.status(200).send(JSON.stringify({message: "Found", alarms: alarms}))
@@ -229,7 +226,6 @@ app.post('/cancelAlarm', function(req, res) {
 });
 
 app.post('/fire/login', function (req, res) {
-    console.log(req.body);
     EmergencyService.findOne({
         where: {
             email: req.body.email

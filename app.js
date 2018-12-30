@@ -64,6 +64,14 @@ User.hasOne(Alarm, {
   foreignKeyConstraint: true
 });
 
+const EmergencyService = sequelize.define('emergency_service', {
+   name: {type: Sequelize.STRING, allowNull: false},
+    long: {type: Sequelize.DOUBLE, allowNull: false},
+    lat: {type: Sequelize.DOUBLE, allowNull: false},
+    email: {type: Sequelize.STRING, allowNull: false},
+    password: {type: Sequelize.STRING, allowNull: false}
+});
+
 // const AlarmRegs = sequelize.define('alarm_registrations', {
 //     comments: {type: Sequelize.STRING, allowNull: false}
 // })
@@ -205,7 +213,7 @@ app.post('/addPushToken', function(req, res) {
       id: req.body.id
     }
   }).then(() => res.end());
-})
+});
 
 app.post('/cancelAlarm', function(req, res) {
   Alarm.update({status: 'connected'}, {
@@ -215,9 +223,41 @@ app.post('/cancelAlarm', function(req, res) {
   }).then((alarm) => {
     res.end();
   });
-})
+});
 
+app.post('/fire/login', function (req, res) {
+    console.log(req.body);
+    EmergencyService.findOne({
+        where: {
+            email: req.body.email
+        }
+    }).then(serv => {
+        if (serv.password === req.body.password){
+            res.status(200).send(JSON.stringify({message: "correct", user: serv}));
+        } else {
+            res.status(400).send(JSON.stringify({message: "incorrect"}))
+        }
+    });
+});
+
+app.post('/fire/signup', function (req, res) {
+    EmergencyService.create({
+        name: req.body.name,
+        long: req.body.loc.lng,
+        lat: req.body.loc.lat,
+        email: req.body.email,
+        password: req.body.password
+    })
+        .then(serv => {
+            res.status(200).send(JSON.stringify({message: "success", user: serv}));
+        })
+        .catch(err => {
+            res.status(500).send(JSON.stringify({message: "Catch", err: err}))
+        }).error(err => {
+        res.status(500).send(JSON.stringify({message: "Error", err: err}))
+        });
+});
 
 app.get('/', function(req, res) {
-  res.sendFile(path.join(__dirname,'./views/index.html'));
-})
+    res.sendFile(path.join(__dirname,'./views/index.html'));
+});

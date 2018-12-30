@@ -84,6 +84,9 @@ sequelize.sync()
         }
     );
 
+app.get('/', function(req, res) {
+    res.sendFile(path.join(__dirname, 'views', 'index.html'));
+});
 
 app.post('/login', function (req, res) {
     User.findOne({
@@ -258,6 +261,10 @@ app.post('/fire/signup', function (req, res) {
         });
 });
 
-app.get('/', function(req, res) {
-    res.sendFile(path.join(__dirname,'./views/index.html'));
+
+app.use(express.static(path.join(__dirname, '..', 'firealarmclient', 'client', 'build')));
+
+app.get('/app*', function(req, res) {
+    res.sendFile(path.join(__dirname, '..', 'firealarmclient', 'client', 'build', 'index.html'));
 });
+

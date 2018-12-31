@@ -47,6 +47,7 @@ const User = sequelize.define('user', {
 const Alarm = sequelize.define('alarm', {
     uid: {type: Sequelize.STRING, allowNull: false},
     name: {type: Sequelize.STRING, allowNull: false},
+    addressName: {type: Sequelize.STRING, allowNull: false},
     long: {type: Sequelize.DOUBLE, allowNull: false},
     lat: {type: Sequelize.DOUBLE, allowNull: false},
     status: {type: Sequelize.STRING, allowNull: false},
@@ -144,6 +145,7 @@ app.post('/registerDevice', function(req, res) {
     Alarm.create({
       uid: body.uid,
       name: body.name,
+      addressName: body.addressName,
       long: body.loc.lng,
       lat: body.loc.lat,
       status: 'connected',
@@ -259,6 +261,17 @@ app.post('/fire/signup', function (req, res) {
 
 
 app.use(express.static(path.join(__dirname, '..', 'firealarmclient', 'client', 'build')));
+
+
+app.post('/fire/list', function (req, res) {
+    Alarm.findAll({
+        where: {
+            status: 'triggered'
+        }
+    }).then(alarms => {
+        res.status(200).send(JSON.stringify({alarms: alarms}));
+    });
+});
 
 app.get('/app*', function(req, res) {
     res.sendFile(path.join(__dirname, '..', 'firealarmclient', 'client', 'build', 'index.html'));

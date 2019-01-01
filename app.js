@@ -197,7 +197,7 @@ app.post('/triggerAlarm', function (req, res) {
           }
         }).then(alarm => {
           io.sockets.in(alarm.user).emit('message', JSON.stringify(alarm));
-          res.end();
+          updateStations(alarm).then(res.end());
         })
       });
 });
@@ -209,6 +209,10 @@ io.on('connection', function(client) {
     client.on('leave', function(id) {
       client.leave(id);
     });
+    client.on('fireJoin', function (id) {
+        console.log(`Fire ${id} joined`);
+        client.join(`fire${id}`)
+    })
 });
 
 app.post('/addPushToken', function(req, res) {
@@ -225,7 +229,7 @@ app.post('/cancelAlarm', function(req, res) {
       id: req.body.id
     }
   }).then((alarm) => {
-    res.end();
+    updateStations(alarm).then(res.end());
   });
 });
 
@@ -267,34 +271,10 @@ app.use(express.static(path.join(__dirname, '..', 'firealarmclient', 'client', '
 
 
 app.post('/fire/list', function (req, res) {
-    Alarm.findAll({
-        where: {
-            status: 'triggered'
-        }
-    }).then(alarms => {
-        EmergencyService.findOne({
-            where: {
-                id: req.body.id
-            }
-        }).then(serv => {
-            console.log(serv.maxDistance);
-            // console.log(alarms);
-            let resAlarms = [];
-            for(let i = 0; i < alarms.length; i++) {
-                let alarm = alarms[i];
-                console.log('Distance:');
-                console.log(Distance.between({lat: alarm.lat, lon: alarm.long}, {lat: serv.lat, lon: serv.long}));
-                console.log('Max:');
-                console.log(Distance(`${serv.maxDistance} km`));
-                console.log('Within');
-                console.log((Distance.between({lat: alarm.lat, lon: alarm.long}, {lat: serv.lat, lon: serv.long}) > Distance(`${serv.maxDistance} km`)));
-                if (Distance.between({lat: alarm.lat, lon: alarm.long}, {lat: serv.lat, lon: serv.long}) <= Distance(`${serv.maxDistance} km`)) {
-                    resAlarms.push(alarm);
+    // let alarms =
+    listFires(req.body.id).then(alarms => {
+        res.status(200).send(JSON.stringify({alarms: alarms}));
 
-                }
-            };
-            res.status(200).send(JSON.stringify({alarms: resAlarms}));
-        });
     });
 });
 
@@ -302,3 +282,46 @@ app.get('/app*', function(req, res) {
     res.sendFile(path.join(__dirname, '..', 'firealarmclient', 'client', 'build', 'index.html'));
 });
 
+async function listFires(id) {
+
+    return new Promise(function(resolve, reject) {
+        Alarm.findAll({
+            where: {
+                status: 'triggered'
+            }
+        }).then(alarms => {
+            EmergencyService.findOne({
+                where: {
+                    id: id
+                }
+            }).then(serv => {
+                let resAlarms = [];
+                for (let i = 0; i < alarms.length; i++) {
+                    let alarm = alarms[i];
+                    if (Distance.between({lat: alarm.lat, lon: alarm.long}, {
+                            lat: serv.lat,
+                            lon: serv.long
+                        }) <= Distance(`${serv.maxDistance} km`)) {
+                        resAlarms.push(alarm);
+
+                    }
+                }
+                resolve(resAlarms);
+            });
+        });
+    });
+}
+
+async function updateStations(alarm) {
+    return new Promise(function (resolve, reject) {
+        let servs = [];
+       EmergencyService.findAll()
+           .then(servs => {
+                servs.forEach((serv) => {
+                    listFires(serv.id).then((alarms) => {
+                        io.sockets.in(`fire${serv.id}`).emit('alarmUpdate', JSON.stringify({alarms: alarms}))
+                    });
+                })
+           })
+    });
+}

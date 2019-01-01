@@ -5,6 +5,7 @@ const app = express();
 const path = require('path');
 const ejs = require('ejs');
 const bodyParser = require('body-parser');
+const Distance = require('geo-distance');
 app.set('view engine', 'ejs');
 app.use(express.static(path.join(__dirname,'/static')));
 app.use( bodyParser.json() );
@@ -70,7 +71,8 @@ const EmergencyService = sequelize.define('emergency_service', {
     long: {type: Sequelize.DOUBLE, allowNull: false},
     lat: {type: Sequelize.DOUBLE, allowNull: false},
     email: {type: Sequelize.STRING, allowNull: false},
-    password: {type: Sequelize.STRING, allowNull: false}
+    password: {type: Sequelize.STRING, allowNull: false},
+    maxDistance: {type: Sequelize.DOUBLE, allowNull: false}
 });
 
 // const AlarmRegs = sequelize.define('alarm_registrations', {
@@ -247,7 +249,8 @@ app.post('/fire/signup', function (req, res) {
         long: req.body.loc.lng,
         lat: req.body.loc.lat,
         email: req.body.email,
-        password: req.body.password
+        password: req.body.password,
+        maxDistance: req.body.maxDistance
     })
         .then(serv => {
             res.status(200).send(JSON.stringify({message: "success", user: serv}));
@@ -269,7 +272,29 @@ app.post('/fire/list', function (req, res) {
             status: 'triggered'
         }
     }).then(alarms => {
-        res.status(200).send(JSON.stringify({alarms: alarms}));
+        EmergencyService.findOne({
+            where: {
+                id: req.body.id
+            }
+        }).then(serv => {
+            console.log(serv.maxDistance);
+            // console.log(alarms);
+            let resAlarms = [];
+            for(let i = 0; i < alarms.length; i++) {
+                let alarm = alarms[i];
+                console.log('Distance:');
+                console.log(Distance.between({lat: alarm.lat, lon: alarm.long}, {lat: serv.lat, lon: serv.long}));
+                console.log('Max:');
+                console.log(Distance(`${serv.maxDistance} km`));
+                console.log('Within');
+                console.log((Distance.between({lat: alarm.lat, lon: alarm.long}, {lat: serv.lat, lon: serv.long}) > Distance(`${serv.maxDistance} km`)));
+                if (Distance.between({lat: alarm.lat, lon: alarm.long}, {lat: serv.lat, lon: serv.long}) <= Distance(`${serv.maxDistance} km`)) {
+                    resAlarms.push(alarm);
+
+                }
+            };
+            res.status(200).send(JSON.stringify({alarms: resAlarms}));
+        });
     });
 });
 

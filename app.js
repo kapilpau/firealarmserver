@@ -202,6 +202,29 @@ app.post('/triggerAlarm', function (req, res) {
       });
 });
 
+app.post('/fire/dispatchCrew', function (req, res) {
+    console.log("Dispatch");
+    Alarm.update({status: "dispatched"}, {
+        where: {
+            id: req.body.alarm
+        }
+    })
+        .then(alarm => {
+            Alarm.findOne({
+                where: {
+                    id: req.body.alarm
+                }
+            }).then(alarm => {
+                console.log(alarm);
+                // io.sockets.in(alarm.user).emit('message', JSON.stringify(alarm));
+                updateStations(alarm).then(
+                    res.status(200).send(JSON.stringify({message: "success", res: alarm}))
+                );
+
+            })
+        })
+});
+
 io.on('connection', function(client) {
     client.on('join', function(id) {
       client.join(id);
@@ -223,13 +246,13 @@ app.post('/addPushToken', function(req, res) {
   }).then(() => res.end());
 });
 
-app.post('/cancelAlarm', function(req, res) {
+app.post('*/cancelAlarm', function(req, res) {
   Alarm.update({status: 'connected'}, {
     where: {
       id: req.body.id
     }
   }).then((alarm) => {
-    updateStations(alarm).then(res.end());
+    updateStations(alarm).then(res.status(200).send(JSON.stringify({message: "successful", res: alarm})));
   });
 });
 
@@ -286,9 +309,11 @@ async function listFires(id) {
 
     return new Promise(function(resolve, reject) {
         Alarm.findAll({
-            where: {
-                status: 'triggered'
-            }
+            where:  Sequelize.or(
+                    {status: 'triggered'},
+                    {status: 'dispatched'}
+            )
+
         }).then(alarms => {
             EmergencyService.findOne({
                 where: {

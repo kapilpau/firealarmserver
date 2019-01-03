@@ -52,7 +52,8 @@ const Alarm = sequelize.define('alarm', {
     long: {type: Sequelize.DOUBLE, allowNull: false},
     lat: {type: Sequelize.DOUBLE, allowNull: false},
     status: {type: Sequelize.STRING, allowNull: false},
-    comments: {type: Sequelize.STRING, allowNull: true}
+    comments: {type: Sequelize.STRING, allowNull: true},
+    detectedAt: {type: 'TIMESTAMP', allowNull: true}
 }, {
   instanceMethods: {
     getStatus: function () {
@@ -185,7 +186,7 @@ app.get('/getDevices/:user', function(req, res){
 
 
 app.post('/triggerAlarm', function (req, res) {
-    Alarm.update({status: "triggered"}, {
+    Alarm.update({status: "triggered", detectedAt: sequelize.fn('NOW')}, {
       where: {
         id: req.body.alarm
       }

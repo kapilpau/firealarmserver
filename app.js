@@ -184,34 +184,35 @@ app.post('/registerDevice', function(req, res) {
 });
 
 app.post('/assignDevice', function (req, res) {
-    Alarm.findOne({
+    User.findOne({
         where: {
-            uid: req.body.uid
+            username: req.body.username
         }
-    }).then((alarm) => {
-            if (alarm){
-                AlarmRegistration.create({
-                    alarmId: alarm.id,
-                    userId: user.id
-                }).then(() => res.status(200).send({message: "exists", alarm: alarm}));
-            } else {
-                Alarm.create({
-                    uid: req.body.uid
-                }).then(alarm => {
-                    User.findOne({
-                        where: {
-                            username: req.body.username
-                        }
-                    }).then(user => {
-                        AlarmRegistration.create({
-                            alarmId: alarm.id,
-                            userId: user.id
-                        }).then(() => res.status(200).send({message: "created", alarm: alarm}));
+    }).then(user => {
+        Alarm.findOne({
+            where: {
+                uid: req.body.uid
+            }
+        }).then((alarm) => {
+                if (alarm){
+                    AlarmRegistration.create({
+                        alarmId: alarm.id,
+                        userId: user.id
+                    }).then(() => res.status(200).send({message: "exists", alarm: alarm}));
+                } else {
+                    Alarm.create({
+                        uid: req.body.uid
+                    }).then(alarm => {
+                            AlarmRegistration.create({
+                                alarmId: alarm.id,
+                                userId: user.id
+                            }).then(() => res.status(200).send({message: "created", alarm: alarm}));
+
 
                     })
-                })
-            }
-        })
+                }
+            })
+    })
 });
 
 app.get('/google428a6707452891c1.html', function(req, res) {

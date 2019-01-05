@@ -26,7 +26,7 @@ const sequelize = new Sequelize(config.dbName, config.dbUser, config.dbPass, {
         acquire: 30000,
         idle: 10000
     },
-
+    logging: false,
     // http://docs.sequelizejs.com/manual/tutorial/querying.html#operators
     operatorsAliases: false
 });
@@ -47,11 +47,11 @@ const User = sequelize.define('user', {
 
 const Alarm = sequelize.define('alarm', {
     uid: {type: Sequelize.STRING, allowNull: false},
-    name: {type: Sequelize.STRING, allowNull: false},
-    addressName: {type: Sequelize.STRING, allowNull: false},
-    long: {type: Sequelize.DOUBLE, allowNull: false},
-    lat: {type: Sequelize.DOUBLE, allowNull: false},
-    status: {type: Sequelize.STRING, allowNull: false},
+    name: {type: Sequelize.STRING, allowNull: true},
+    addressName: {type: Sequelize.STRING, allowNull: true},
+    long: {type: Sequelize.DOUBLE, allowNull: true},
+    lat: {type: Sequelize.DOUBLE, allowNull: true},
+    status: {type: Sequelize.STRING, allowNull: true},
     comments: {type: Sequelize.STRING, allowNull: true},
     detectedAt: {type: 'TIMESTAMP', allowNull: true}
 }, {
@@ -62,10 +62,18 @@ const Alarm = sequelize.define('alarm', {
   }
 });
 
-User.hasOne(Alarm, {
-  foreignKey: 'user',
-  foreignKeyConstraint: true
-});
+const AlarmRegistration = sequelize.define('alarm_registration', {});
+
+
+AlarmRegistration.belongsTo(User);
+AlarmRegistration.belongsTo(Alarm);
+Alarm.hasMany(AlarmRegistration);
+User.hasMany(AlarmRegistration);
+
+// User.hasOne(Alarm, {
+//   foreignKey: 'user',
+//   foreignKeyConstraint: true
+// });
 
 const EmergencyService = sequelize.define('emergency_service', {
    name: {type: Sequelize.STRING, allowNull: false},
@@ -141,29 +149,66 @@ app.post('/signup', function (req, res) {
 
 app.post('/registerDevice', function(req, res) {
     let body = req.body;
-    if (!(body.user && body.loc.lng && body.loc.lat && body.uid))
+    console.log(body);
+    if (!(body.loc.lng && body.loc.lat && body.uid))
     {
       res.status(400).send(JSON.stringify({message: "Missing options"}));
+      return;
     }
-    Alarm.create({
-      uid: body.uid,
+    Alarm.update({
       name: body.name,
       addressName: body.addressName,
       long: body.loc.lng,
       lat: body.loc.lat,
       status: 'connected',
-      comments: body.comments !== "" ? body.comments : null,
-      user: body.user
+      comments: body.comments !== "" ? body.comments : ""
+    }, {
+        where: {
+            uid: body.uid
+        }
     }).then(alarm => {
       // User.findOne({where:{id: body.user}}).then((user) => {
         // alarm.setUser(user);
-        res.status(200).send(JSON.stringify({message: "Created successfully", alarm: alarm}))
+        res.status(200).send(JSON.stringify({message: "Created successfully", alarm: alarm}));
+        return;
       // });
     }).catch(err => {
-      res.status(500).send(JSON.stringify({message: "Catch", err: err}))
+        console.log(`Error: ${err}`);
+      res.status(500).send(JSON.stringify({message: "Catch", err: err}));
+      return;
     }).error(err => {
-      res.status(500).send(JSON.stringify({message: "Error", err: err}))
+      console.log(`Error: ${err}`);
+      res.status(500).send(JSON.stringify({message: "Error", err: err}));
+      return;
     });
+});
+
+app.post('/assignDevice', function (req, res) {
+    Alarm.findOne({
+        where: {
+            uid: req.body.uid
+        }
+    }).then((alarm) => {
+            if (alarm){
+                res.status(200).send({message: "exists", alarm: alarm});
+            } else {
+                Alarm.create({
+                    uid: req.body.uid
+                }).then(alarm => {
+                    User.findOne({
+                        where: {
+                            username: req.body.username
+                        }
+                    }).then(user => {
+                        AlarmRegistration.create({
+                            alarmId: alarm.id,
+                            userId: user.id
+                        }).then(() => res.status(200).send({message: "created", alarm: alarm}));
+
+                    })
+                })
+            }
+        })
 });
 
 app.get('/google428a6707452891c1.html', function(req, res) {
@@ -171,11 +216,19 @@ app.get('/google428a6707452891c1.html', function(req, res) {
 });
 
 app.get('/getDevices/:user', function(req, res){
-  Alarm.findAll({
+  User.findOne({
     where: {
-      user: req.params.user
-    }
-  }).then((alarms) => {
+      id: req.params.user
+    },
+      include: [ {
+        model: AlarmRegistration,
+        include: [ Alarm ]
+      } ]
+  }).then((user) => {
+      let alarms = [];
+      user.dataValues.alarm_registrations.forEach(alarm =>{
+          alarms.push(alarm.dataValues.alarm.dataValues);
+      });
     if (alarms.length === 0){
       res.status(200).send(JSON.stringify({message: "No alarms"}));
     } else {
@@ -195,9 +248,19 @@ app.post('/triggerAlarm', function (req, res) {
         Alarm.findOne({
           where: {
             id: req.body.alarm
-          }
+          },
+            include: [
+                {
+                    model: AlarmRegistration,
+                    include: [ User ]
+                }
+            ]
         }).then(alarm => {
-          io.sockets.in(alarm.user).emit('message', JSON.stringify(alarm));
+            console.log("Users: ");
+            alarm.dataValues.alarm_registrations.forEach(user => {
+                console.log(user.user.dataValues.id);
+                io.sockets.in(user.user.dataValues.id).emit('message', JSON.stringify(alarm));
+            });
           updateStations(alarm).then(res.end());
         })
       });
@@ -228,6 +291,7 @@ app.post('/fire/dispatchCrew', function (req, res) {
 
 io.on('connection', function(client) {
     client.on('join', function(id) {
+        console.log(`App ${id} joined`);
       client.join(id);
     });
     client.on('leave', function(id) {

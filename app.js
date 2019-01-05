@@ -190,7 +190,10 @@ app.post('/assignDevice', function (req, res) {
         }
     }).then((alarm) => {
             if (alarm){
-                res.status(200).send({message: "exists", alarm: alarm});
+                AlarmRegistration.create({
+                    alarmId: alarm.id,
+                    userId: user.id
+                }).then(() => res.status(200).send({message: "exists", alarm: alarm}));
             } else {
                 Alarm.create({
                     uid: req.body.uid

@@ -263,7 +263,7 @@ app.post('/triggerAlarm', function (req, res) {
             console.log("Users: ");
             alarm.dataValues.alarm_registrations.forEach(user => {
                 console.log(user.user.dataValues.id);
-                io.sockets.in(user.user.dataValues.id).emit('message', JSON.stringify(alarm));
+                io.sockets.in(user.user.dataValues.id).emit('trigger', JSON.stringify(alarm));
             });
           updateStations(alarm).then(res.end());
         })
@@ -320,8 +320,25 @@ app.post('*/cancelAlarm', function(req, res) {
     where: {
       id: req.body.id
     }
-  }).then((alarm) => {
-    updateStations(alarm).then(res.status(200).send(JSON.stringify({message: "successful", res: alarm})));
+  }).then((ret) => {
+      Alarm.findOne({
+          where: {
+              id: req.body.id
+          },
+          include: [
+              {
+                  model: AlarmRegistration,
+                  include: [ User ]
+              }
+          ]
+      }).then(alarm => {
+          alarm.dataValues.alarm_registrations.forEach(user => {
+              console.log(user.user.dataValues.id);
+              io.sockets.in(user.user.dataValues.id).emit('cancel', JSON.stringify(alarm));
+          });
+        updateStations(alarm).then(res.status(200).send(JSON.stringify({message: "successful", res: alarm})));
+      });
+
   });
 });
 

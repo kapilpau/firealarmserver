@@ -194,12 +194,27 @@ app.post('/assignDevice', function (req, res) {
                 uid: req.body.uid
             }
         }).then((alarm) => {
+            // console.log(user);
                 if (alarm){
-                    AlarmRegistration.create({
-                        alarmId: alarm.id,
-                        userId: user.id
-                    }).then(() => res.status(200).send({message: "exists", alarm: alarm}));
+                    console.log("Exists");
+                    AlarmRegistration.findOne({
+                        where: {
+                            alarmId: alarm.dataValues.uid,
+                            userId: user.dataValues.id
+                        }
+                    }).then((reg) => {
+                        console.log(reg);
+                        if (reg){
+                            AlarmRegistration.create({
+                                alarmId: alarm.id,
+                                userId: user.id
+                            }).then(() => res.status(200).send({message: "exists", alarm: alarm}));
+                        } else {
+                            res.status(200).send({message: "alreadyAssigned", alarm: alarm})
+                        }
+                    });
                 } else {
+                    console.log("Doesn't");
                     Alarm.create({
                         uid: req.body.uid
                     }).then(alarm => {
@@ -333,7 +348,6 @@ app.post('*/cancelAlarm', function(req, res) {
           ]
       }).then(alarm => {
           alarm.dataValues.alarm_registrations.forEach(user => {
-              console.log(user.user.dataValues.id);
               io.sockets.in(user.user.dataValues.id).emit('cancel', JSON.stringify(alarm));
           });
         updateStations(alarm).then(res.status(200).send(JSON.stringify({message: "successful", res: alarm})));

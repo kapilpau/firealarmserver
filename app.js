@@ -204,7 +204,7 @@ app.post('/assignDevice', function (req, res) {
                         }
                     }).then((reg) => {
                         console.log(reg);
-                        if (reg){
+                        if (!reg){
                             AlarmRegistration.create({
                                 alarmId: alarm.id,
                                 userId: user.id

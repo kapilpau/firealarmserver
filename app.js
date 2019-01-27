@@ -35,8 +35,7 @@ const User = sequelize.define('user', {
     username: {type: Sequelize.STRING, allowNull: false},
     email: {type: Sequelize.STRING, allowNull: false},
     password: {type: Sequelize.STRING, allowNull: false},
-    name: {type: Sequelize.STRING, allowNull: false},
-    notificationKey: {type: Sequelize.STRING, allowNull: true}
+    name: {type: Sequelize.STRING, allowNull: false}
 }, {
     instanceMethods: {
         getPass: function () {
@@ -63,6 +62,10 @@ const Alarm = sequelize.define('alarm', {
 });
 
 const AlarmRegistration = sequelize.define('alarm_registration', {});
+const NotificationKey = sequelize.define('notification_key', {
+    key: {type: Sequelize.STRING, allowNull: false},
+    userId: {type: Sequelize.INTEGER, references: {model: 'users', key: 'id'}}
+});
 
 
 AlarmRegistration.belongsTo(User);
@@ -101,18 +104,25 @@ app.get('/', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
-    console.log(`/login ${req.body}`);
     User.findOne({
         where: {
             username: req.body.username
         }
     }).then(function (usr) {
-        console.log(JSON.stringify(usr));
         if (req.body.password === usr.password){
-            console.log("Correct");
             res.setHeader('Content-Type', 'application/json');
             // res.statusText = JSON.stringify(usr);
-            res.status(200).end(JSON.stringify({user: usr, message: "Correct"}));
+            if (req.body.token)
+            {
+                NotificationKey.create({
+                    userId: usr.id,
+                    key: req.body.token
+                }).then(() =>
+                    res.status(200).end(JSON.stringify({user: usr, message: "Correct"}))
+                );
+            } else {
+                res.status(200).end(JSON.stringify({user: usr, message: "Correct"}));
+            }
         } else {
             res.status(400).end(JSON.stringify({message: "Incorrect"}));
         }
@@ -136,7 +146,16 @@ app.post('/signup', function (req, res) {
       if (!usr) {
         User.create({username: req.body.username, email: req.body.email, password: req.body.password, name: req.body.name})
             .then(function (user) {
-                res.status(200).send(JSON.stringify({user: user, message: "Correct"}));
+                if (req.body.token){
+                    NotificationKey.create({
+                        userId: usr.id,
+                        key: req.body.token
+                    }).then(() =>
+                        res.status(200).end(JSON.stringify({user: usr, message: "Correct"}))
+                    );
+                } else {
+                    res.status(200).send(JSON.stringify({user: user, message: "Correct"}));
+                }
             })
             .catch(function () {
                 res.status(500).send("Something went wrong");
@@ -149,7 +168,6 @@ app.post('/signup', function (req, res) {
 
 app.post('/registerDevice', function(req, res) {
     let body = req.body;
-    console.log(body);
     if (!(body.loc.lng && body.loc.lat && body.uid))
     {
       res.status(400).send(JSON.stringify({message: "Missing options"}));
@@ -194,16 +212,13 @@ app.post('/assignDevice', function (req, res) {
                 uid: req.body.uid
             }
         }).then((alarm) => {
-            // console.log(user);
                 if (alarm){
-                    console.log("Exists");
                     AlarmRegistration.findOne({
                         where: {
                             alarmId: alarm.dataValues.uid,
                             userId: user.dataValues.id
                         }
                     }).then((reg) => {
-                        console.log(reg);
                         if (!reg){
                             AlarmRegistration.create({
                                 alarmId: alarm.id,
@@ -214,7 +229,6 @@ app.post('/assignDevice', function (req, res) {
                         }
                     });
                 } else {
-                    console.log("Doesn't");
                     Alarm.create({
                         uid: req.body.uid
                     }).then(alarm => {
@@ -256,6 +270,19 @@ app.get('/getDevices/:user', function(req, res){
   });
 });
 
+app.post('/logout', function (req, res) {
+    console.log(JSON.stringify(req.body));
+    NotificationKey.findOne({
+        where: {
+            userId: req.body.user,
+            key: req.body.token
+        }
+    }).then((key) => {
+        key.destroy();
+        res.status(200).send(JSON.stringify({message: "Successful"}));
+    });
+});
+
 
 app.post('/triggerAlarm', function (req, res) {
     Alarm.update({status: "triggered", detectedAt: sequelize.fn('NOW')}, {
@@ -264,29 +291,54 @@ app.post('/triggerAlarm', function (req, res) {
       }
     })
       .then(alarm => {
-        Alarm.findOne({
-          where: {
-            id: req.body.alarm
-          },
-            include: [
-                {
-                    model: AlarmRegistration,
-                    include: [ User ]
-                }
-            ]
-        }).then(alarm => {
-            console.log("Users: ");
-            alarm.dataValues.alarm_registrations.forEach(user => {
-                console.log(user.user.dataValues.id);
-                io.sockets.in(user.user.dataValues.id).emit('trigger', JSON.stringify(alarm));
-            });
-          updateStations(alarm).then(res.end());
-        })
+          sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN 
+            alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id 
+            WHERE alarms.id = ${req.body.alarm}`)
+              .spread((query, meta) => {
+                  let messages = [];
+                  query.forEach(user => {
+                      io.sockets.in(user.userId).emit('trigger', JSON.stringify(alarm));
+                      let pushKey = user.key;
+                      if (Expo.isExpoPushToken(pushKey)){
+                          messages.push({
+                              to: pushKey,
+                              sound: 'default',
+                              body: 'Alarm triggered',
+                              data: {alarm: alarm}
+                          })
+                      }
+                  });
+                  console.log(messages);
+                  let chunks = expo.chunkPushNotifications(messages);
+                  let tickets = [];
+                  (async () => {
+                      // Send the chunks to the Expo push notification service. There are
+                      // different strategies you could use. A simple one is to send one chunk at a
+                      // time, which nicely spreads the load out over time:
+                      for (let chunk of chunks) {
+                          try {
+                              let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+                              console.log(ticketChunk);
+                              tickets.push(...ticketChunk);
+                              // NOTE: If a ticket contains an error code in ticket.details.error, you
+                              // must handle it appropriately. The error codes are listed in the Expo
+                              // documentation:
+                              // https://docs.expo.io/versions/latest/guides/push-notifications#response-format
+                          } catch (error) {
+                              console.error(error);
+                          }
+                      }
+                  })();
+                  updateStations(alarm).then(res.end());
+              });
+        //
+
+        //     });
+        // })
       });
 });
 
 app.post('/fire/dispatchCrew', function (req, res) {
-    console.log("Dispatch");
     Alarm.update({status: "dispatched"}, {
         where: {
             id: req.body.alarm
@@ -298,7 +350,6 @@ app.post('/fire/dispatchCrew', function (req, res) {
                     id: req.body.alarm
                 }
             }).then(alarm => {
-                console.log(alarm);
                 // io.sockets.in(alarm.user).emit('message', JSON.stringify(alarm));
                 updateStations(alarm).then(
                     res.status(200).send(JSON.stringify({message: "success", res: alarm}))

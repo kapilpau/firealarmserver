@@ -16,6 +16,9 @@ const server = require('http').createServer(app);
 const io = require('socket.io')(server);
 const { Expo } = require('expo-server-sdk');
 let expo = new Expo();
+const bcrypt = require('bcrypt');
+const salt = "$2b$10$Vj1D7AM.7BdsCEw9PEMZH.";
+
 const sequelize = new Sequelize(config.dbName, config.dbUser, config.dbPass, {
     host: config.dbHost,
     dialect: 'mysql',
@@ -104,32 +107,37 @@ app.get('/', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
-    User.findOne({
-        where: {
-            username: req.body.username
-        }
-    }).then(function (usr) {
-        if (req.body.password === usr.password){
-            res.setHeader('Content-Type', 'application/json');
-            // res.statusText = JSON.stringify(usr);
-            if (req.body.token)
-            {
-                NotificationKey.create({
-                    userId: usr.id,
-                    key: req.body.token
-                }).then(() =>
-                    res.status(200).end(JSON.stringify({user: usr, message: "Correct"}))
-                );
-            } else {
-                res.status(200).end(JSON.stringify({user: usr, message: "Correct"}));
+    bcrypt.hash(req.body.password, salt, function(err, hash) {
+        // console.log(hash);
+        User.findOne({
+            where: {
+                username: req.body.username
             }
-        } else {
+        }).then(function (usr) {
+            console.log((usr.password == hash));
+            if(usr.password == hash){
+                    res.setHeader('Content-Type', 'application/json');
+                    // res.statusText = JSON.stringify(usr);
+                    if (req.body.token)
+                    {
+                        NotificationKey.create({
+                            userId: usr.id,
+                            key: req.body.token
+                        }).then(() =>
+                            res.status(200).end(JSON.stringify({user: usr, message: "Correct"}))
+                        );
+                    } else {
+                        res.status(200).end(JSON.stringify({user: usr, message: "Correct"}));
+                    }
+
+            } else {
             res.status(400).end(JSON.stringify({message: "Incorrect"}));
         }
-    })
-    .catch(function (error) {
-        console.log(JSON.stringify(error));
-        res.status(400).end(JSON.stringify({message: "User doesn't exist"}));
+        })
+            .catch(function (error) {
+                console.log(JSON.stringify(error));
+                res.status(400).end(JSON.stringify({message: "User doesn't exist"}));
+            });
     });
 });
 
@@ -138,31 +146,34 @@ app.post('/signup', function (req, res) {
     {
         res.status(400).send("Missing options");
     }
-    User.findOne({
-        where: {
-            username: req.body.username
-        }
-    }).then(usr => {
-      if (!usr) {
-        User.create({username: req.body.username, email: req.body.email, password: req.body.password, name: req.body.name})
-            .then(function (user) {
-                if (req.body.token){
-                    NotificationKey.create({
-                        userId: usr.id,
-                        key: req.body.token
-                    }).then(() =>
-                        res.status(200).end(JSON.stringify({user: usr, message: "Correct"}))
-                    );
-                } else {
-                    res.status(200).send(JSON.stringify({user: user, message: "Correct"}));
-                }
-            })
-            .catch(function () {
-                res.status(500).send("Something went wrong");
-            });
-        }  else {
-          res.status(400).send(JSON.stringify({message: "User already exists"}));
-        }
+
+    bcrypt.hash(req.body.password, salt, function(err, hash) {
+        User.findOne({
+            where: {
+                username: req.body.username
+            }
+        }).then(usr => {
+            if (!usr) {
+                User.create({username: req.body.username, email: req.body.email, password: hash, name: req.body.name})
+                    .then(function (user) {
+                        if (req.body.token){
+                            NotificationKey.create({
+                                userId: usr.id,
+                                key: req.body.token
+                            }).then(() =>
+                                res.status(200).end(JSON.stringify({user: usr, message: "Correct"}))
+                            );
+                        } else {
+                            res.status(200).send(JSON.stringify({user: user, message: "Correct"}));
+                        }
+                    })
+                    .catch(function () {
+                        res.status(500).send("Something went wrong");
+                    });
+            }  else {
+                res.status(400).send(JSON.stringify({message: "User already exists"}));
+            }
+        });
     });
 });
 
@@ -290,28 +301,39 @@ app.post('/triggerAlarm', function (req, res) {
         id: req.body.alarm
       }
     })
-      .then(alarm => {
-          sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN 
-            alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id 
+      .then(success => {
+          sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
+            alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id
             WHERE alarms.id = ${req.body.alarm}`)
               .spread((query, meta) => {
-                  let messages = [];
-                  query.forEach(user => {
+                    console.log(JSON.stringify(query));
+                  let alarm = {
+                      id: query[0].id,
+                      uid: query[0].uid,
+                      name: query[0].name,
+                      addressName: query[0].addressName,
+                      status: query[0].status,
+                      comments: query[0].comments,
+                      detectedAt: query[0].detectedAt,
+                  };
+                  console.log(JSON.stringify(alarm));
+                    let messages = [];
+                    query.forEach(user => {
                       io.sockets.in(user.userId).emit('trigger', JSON.stringify(alarm));
                       let pushKey = user.key;
                       if (Expo.isExpoPushToken(pushKey)){
                           messages.push({
                               to: pushKey,
                               sound: 'default',
-                              body: 'Alarm triggered',
+                              body: `Alarm ${user.name} triggered`,
                               data: {alarm: alarm}
                           })
                       }
-                  });
-                  console.log(messages);
-                  let chunks = expo.chunkPushNotifications(messages);
-                  let tickets = [];
-                  (async () => {
+                    });
+                    console.log(messages);
+                    let chunks = expo.chunkPushNotifications(messages);
+                    let tickets = [];
+                    (async () => {
                       // Send the chunks to the Expo push notification service. There are
                       // different strategies you could use. A simple one is to send one chunk at a
                       // time, which nicely spreads the load out over time:
@@ -328,13 +350,9 @@ app.post('/triggerAlarm', function (req, res) {
                               console.error(error);
                           }
                       }
-                  })();
-                  updateStations(alarm).then(res.end());
+                    })();
+                    updateStations(alarm).then(res.end());
               });
-        //
-
-        //     });
-        // })
       });
 });
 
@@ -408,36 +426,41 @@ app.post('*/cancelAlarm', function(req, res) {
 });
 
 app.post('/fire/login', function (req, res) {
-    EmergencyService.findOne({
-        where: {
-            email: req.body.email
-        }
-    }).then(serv => {
-        if (serv.password === req.body.password){
-            res.status(200).send(JSON.stringify({message: "correct", user: serv}));
-        } else {
-            res.status(400).send(JSON.stringify({message: "incorrect"}))
-        }
+    bcrypt.hash(req.body.password, salt, function(err, hash) {
+        EmergencyService.findOne({
+            where: {
+                email: req.body.email
+            }
+        }).then(serv => {
+            if (serv.password === hash){
+                res.status(200).send(JSON.stringify({message: "correct", user: serv}));
+            } else {
+                res.status(400).send(JSON.stringify({message: "incorrect"}))
+            }
+        });
     });
 });
 
 app.post('/fire/signup', function (req, res) {
-    EmergencyService.create({
-        name: req.body.name,
-        long: req.body.loc.lng,
-        lat: req.body.loc.lat,
-        email: req.body.email,
-        password: req.body.password,
-        maxDistance: req.body.maxDistance
-    })
-        .then(serv => {
-            res.status(200).send(JSON.stringify({message: "success", user: serv}));
+
+    bcrypt.hash(req.body.password, salt, function (err, hash) {
+        EmergencyService.create({
+            name: req.body.name,
+            long: req.body.loc.lng,
+            lat: req.body.loc.lat,
+            email: req.body.email,
+            password: hash,
+            maxDistance: req.body.maxDistance
         })
-        .catch(err => {
-            res.status(500).send(JSON.stringify({message: "Catch", err: err}))
-        }).error(err => {
-        res.status(500).send(JSON.stringify({message: "Error", err: err}))
+            .then(serv => {
+                res.status(200).send(JSON.stringify({message: "success", user: serv}));
+            })
+            .catch(err => {
+                res.status(500).send(JSON.stringify({message: "Catch", err: err}))
+            }).error(err => {
+            res.status(500).send(JSON.stringify({message: "Error", err: err}))
         });
+    });
 });
 
 

@@ -145,6 +145,10 @@ app.get('/privacy_policy', function (req, res) {
     res.sendFile(path.join(__dirname,'./views/privacy_policy.html'));
 });
 
+app.get('/support', function (req, res) {
+    res.sendFile(path.join(__dirname,'./views/support.html'));
+});
+
 app.post('/signup', function (req, res) {
     if (!(req.body.username && req.body.email && req.body.password && req.body.password && req.body.name))
     {

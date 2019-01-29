@@ -141,6 +141,10 @@ app.post('/login', function (req, res) {
     });
 });
 
+app.get('/privacy_policy', function (req, res) {
+    res.sendFile('./views/privacy_policy.html');
+})
+
 app.post('/signup', function (req, res) {
     if (!(req.body.username && req.body.email && req.body.password && req.body.password && req.body.name))
     {

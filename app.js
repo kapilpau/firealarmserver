@@ -220,6 +220,11 @@ app.post('/registerDevice', function(req, res) {
     });
 });
 
+app.get('/simulate', function (req, res) {
+    res.sendFile(path.join(__dirname, 'views', 'simulate.html'));
+});
+
+
 app.post('/assignDevice', function (req, res) {
     User.findOne({
         where: {
@@ -303,16 +308,22 @@ app.post('/logout', function (req, res) {
 });
 
 
+app.post('/simulate', function (req, res) {
+
+});
+
 app.post('/triggerAlarm', function (req, res) {
     Alarm.update({status: "triggered", detectedAt: sequelize.fn('NOW')}, {
       where: {
-        id: req.body.alarm
+        uid: req.body.alarm
       }
     })
       .then(success => {
-          sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
-            alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id
-            WHERE alarms.id = ${req.body.alarm}`)
+          // sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
+          //   alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id
+          //   WHERE alarms.id = ${req.body.alarm}`)
+          sequelize.query(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
+            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.id = ${req.body.alarm}`)
               .spread((query, meta) => {
                     console.log(JSON.stringify(query));
                   let alarm = {

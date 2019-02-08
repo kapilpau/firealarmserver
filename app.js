@@ -313,6 +313,9 @@ app.post('/simulate', function (req, res) {
 });
 
 app.post('/triggerAlarm', function (req, res) {
+    console.log(JSON.stringify(req.body));
+    console.log(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
+            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${req.body.alarm}`);
     Alarm.update({status: "triggered", detectedAt: sequelize.fn('NOW')}, {
       where: {
         uid: req.body.alarm
@@ -323,7 +326,7 @@ app.post('/triggerAlarm', function (req, res) {
           //   alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id
           //   WHERE alarms.id = ${req.body.alarm}`)
           sequelize.query(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
-            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.id = ${req.body.alarm}`)
+            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${req.body.alarm}`)
               .spread((query, meta) => {
                     console.log(JSON.stringify(query));
                   let alarm = {

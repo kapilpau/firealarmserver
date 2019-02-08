@@ -89,7 +89,7 @@
         let request = new XMLHttpRequest();
 
         request.open('POST', '/triggerAlarm', true);
-        request.send(JSON.stringify({alarm: document.getElementsById('alarmID').value}));
+        request.send(JSON.stringify({alarm: document.getElementById('alarmID').value}));
     }
 </script>
 </html>

@@ -73,13 +73,9 @@ const NotificationKey = sequelize.define('notification_key', {
 
 AlarmRegistration.belongsTo(User);
 AlarmRegistration.belongsTo(Alarm);
-Alarm.hasMany(AlarmRegistration);
-User.hasMany(AlarmRegistration);
+Alarm.hasMany(AlarmRegistration, { onDelete: 'cascade' });
+User.hasMany(AlarmRegistration, { onDelete: 'cascade' });
 
-// User.hasOne(Alarm, {
-//   foreignKey: 'user',
-//   foreignKeyConstraint: true
-// });
 
 const EmergencyService = sequelize.define('emergency_service', {
    name: {type: Sequelize.STRING, allowNull: false},
@@ -90,11 +86,6 @@ const EmergencyService = sequelize.define('emergency_service', {
     maxDistance: {type: Sequelize.DOUBLE, allowNull: false}
 });
 
-// const AlarmRegs = sequelize.define('alarm_registrations', {
-//     comments: {type: Sequelize.STRING, allowNull: false}
-// })
-
-// Alarm.belongsToMany(User, {through: AlarmRegs});
 
 sequelize.sync()
     .then(function() {
@@ -270,6 +261,37 @@ app.post('/assignDevice', function (req, res) {
 
 app.get('/google428a6707452891c1.html', function(req, res) {
   res.sendFile(path.join(__dirname,'./views/verification.html'));
+});
+
+app.post('/unregisterDevice', function (req, res) {
+    AlarmRegistration.destroy({
+        where: {
+            userId: req.body.user,
+            alarmId: req.body.alarm
+        }
+    }).then((success) => {
+        if (success){
+            res.status(200).send(JSON.stringify({message: "Success"}));
+        } else {
+
+            res.status(400).send(JSON.stringify({message: "Something went wrong"}));
+        }
+    });
+});
+
+app.post('/deleteDevice', function (req, res) {
+    Alarm.destroy({
+        where: {
+            id: req.body.id
+        }
+    }).then((success) => {
+        if (success){
+            res.status(200).send(JSON.stringify({message: "Success"}));
+        } else {
+
+            res.status(400).send(JSON.stringify({message: "Something went wrong"}));
+        }
+    });
 });
 
 app.get('/getDevices/:user', function(req, res){

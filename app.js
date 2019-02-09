@@ -485,6 +485,28 @@ app.post('/fire/signup', function (req, res) {
     });
 });
 
+app.post('/fire/update', function (req, res) {
+    console.log(req.body);
+    EmergencyService.update({
+        name: req.body.name,
+        long: req.body.loc.lng,
+        lat: req.body.loc.lat,
+        email: req.body.email,
+        maxDistance: req.body.maxDistance
+    }, {
+        where: {
+            id: req.body.id
+        }
+    }).then((success) => {
+        console.log(success);
+        if (success){
+            res.status(200).end(JSON.stringify({message: "Success"}));
+        } else {
+            res.status(400).end(JSON.stringify({message: "Something went wrong"}));
+        }
+    });
+});
+
 
 app.use(express.static(path.join(__dirname, '..', 'firealarmclient', 'client', 'build')));
 

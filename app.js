@@ -176,6 +176,25 @@ app.post('/signup', function (req, res) {
     });
 });
 
+app.post('/updateAccount', function (req, res) {
+    User.update({
+        username: req.body.username,
+        name: req.body.name,
+        email: req.body.email
+    }, {
+        where: {
+            id: req.body.id
+        }
+    }).then((success) => {
+        console.log(success[0] === 1);
+       if (success) {
+           res.status(200).send(JSON.stringify({message: "Success"}));
+       } else {
+           res.status(400).send(JSON.stringify({message: "Error occurred"}));
+       }
+    });
+});
+
 app.post('/registerDevice', function(req, res) {
     let body = req.body;
     if (!(body.loc.lng && body.loc.lat && body.uid))
@@ -213,6 +232,29 @@ app.post('/registerDevice', function(req, res) {
 
 app.get('/simulate', function (req, res) {
     res.sendFile(path.join(__dirname, 'views', 'simulate.html'));
+});
+
+
+app.post('/updateDevice', function (req, res) {
+    console.log(req.body);
+    Alarm.update({
+        name: req.body.name,
+        addressName: req.body.addressName,
+        long: req.body.long,
+        lat: req.body.lat,
+        comments: req.body.comments !== "" ? req.body.comments : ""
+    }, {
+        where: {
+            id: req.body.id
+        }
+    }).then(success => {
+        console.log(success);
+        if (success[0] === 1){
+            res.status(200).send(JSON.stringify({message: "Success"}));
+        } else {
+            res.status(400).send(JSON.stringify({message: "Error"}))
+        }
+    });
 });
 
 
@@ -263,7 +305,7 @@ app.get('/google428a6707452891c1.html', function(req, res) {
   res.sendFile(path.join(__dirname,'./views/verification.html'));
 });
 
-app.post('/unregisterDevice', function (req, res) {
+app.post('/deregisterDevice', function (req, res) {
     AlarmRegistration.destroy({
         where: {
             userId: req.body.user,

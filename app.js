@@ -372,7 +372,7 @@ app.post('/logout', function (req, res) {
     });
 });
 
-app.get('download', function (req, res) {
+app.get('/download', function (req, res) {
   res.sendFile(path.join(__dirname, '..', '..', 'argus.apk'));
 });
 

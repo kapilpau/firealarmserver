@@ -98,6 +98,7 @@ app.get('/', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
+    console.log(req.body);
     bcrypt.hash(req.body.password, salt, function(err, hash) {
         // console.log(hash);
         User.findOne({
@@ -371,9 +372,8 @@ app.post('/logout', function (req, res) {
     });
 });
 
-
-app.post('/simulate', function (req, res) {
-
+app.get('download', function (req, res) {
+  res.sendFile(path.join(__dirname, '..', '..', 'argus.apk'));
 });
 
 app.post('/triggerAlarm', function (req, res) {

@@ -573,13 +573,14 @@ async function updateUsers(alarmId) {
     return new Promise(function (resolve, reject) {
         console.log(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
             alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${alarmId}`);
+        console.log("1");
         Alarm.update({status: "triggered", detectedAt: sequelize.fn('NOW')}, {
             where: {
                 uid: alarmId
             }
         })
             .then(success => {
-
+            console.log("2");
                 console.log(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
             alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${alarmId}`);
                 // sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN

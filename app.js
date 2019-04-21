@@ -18,6 +18,9 @@ const { Expo } = require('expo-server-sdk');
 let expo = new Expo();
 const bcrypt = require('bcrypt');
 const salt = "$2b$10$Vj1D7AM.7BdsCEw9PEMZH.";
+const mqtt = require('mqtt');
+const mqtt_client  = mqtt.connect('mqtt://81.133.242.237:1883');
+
 
 const sequelize = new Sequelize(config.dbName, config.dbUser, config.dbPass, {
     host: config.dbHost,
@@ -30,8 +33,32 @@ const sequelize = new Sequelize(config.dbName, config.dbUser, config.dbPass, {
         idle: 10000
     },
     logging: false,
-    // http://docs.sequelizejs.com/manual/tutorial/querying.html#operators
     operatorsAliases: false
+});
+
+mqtt_client.on('connect', function () {
+    mqtt_client.subscribe(['trigger','cancel'], function (err) {
+        if (!err) {
+           console.log("MQTT connected");
+        }
+    });
+});
+
+mqtt_client.on('message', function (topic, message) {
+
+    if (topic === "trigger") {
+        console.log(message.toString());
+        updateUsers(parseInt(message.toString()))
+            .then(() =>
+                updateStations().then( () =>
+                    res.end()
+                )
+            );
+    } else if (topic === "cancel") {
+        cancelAlarm(parseInt(message.toString())).then(() => {
+            updateStations();
+        });
+    }
 });
 
 const User = sequelize.define('user', {
@@ -39,12 +66,6 @@ const User = sequelize.define('user', {
     email: {type: Sequelize.STRING, allowNull: false},
     password: {type: Sequelize.STRING, allowNull: false},
     name: {type: Sequelize.STRING, allowNull: false}
-}, {
-    instanceMethods: {
-        getPass: function () {
-            return this.password;
-        }
-    }
 });
 
 const Alarm = sequelize.define('alarm', {
@@ -56,26 +77,16 @@ const Alarm = sequelize.define('alarm', {
     status: {type: Sequelize.STRING, allowNull: true},
     comments: {type: Sequelize.STRING, allowNull: true},
     detectedAt: {type: 'TIMESTAMP', allowNull: true}
-}, {
-  instanceMethods: {
-    getStatus: function () {
-      return this.status;
-    }
-  }
+
 });
 
 const AlarmRegistration = sequelize.define('alarm_registration', {});
-const NotificationKey = sequelize.define('notification_key', {
-    key: {type: Sequelize.STRING, allowNull: false},
-    userId: {type: Sequelize.INTEGER, references: {model: 'users', key: 'id'}}
-});
 
 
 AlarmRegistration.belongsTo(User);
 AlarmRegistration.belongsTo(Alarm);
 Alarm.hasMany(AlarmRegistration, { onDelete: 'cascade' });
 User.hasMany(AlarmRegistration, { onDelete: 'cascade' });
-
 
 const EmergencyService = sequelize.define('emergency_service', {
    name: {type: Sequelize.STRING, allowNull: false},
@@ -84,6 +95,11 @@ const EmergencyService = sequelize.define('emergency_service', {
     email: {type: Sequelize.STRING, allowNull: false},
     password: {type: Sequelize.STRING, allowNull: false},
     maxDistance: {type: Sequelize.DOUBLE, allowNull: false}
+});
+
+const NotificationKey = sequelize.define('notification_key', {
+    key: {type: Sequelize.STRING, allowNull: false},
+    userId: {type: Sequelize.INTEGER, references: {model: 'users', key: 'id'}}
 });
 
 
@@ -98,18 +114,14 @@ app.get('/', function(req, res) {
 });
 
 app.post('/login', function (req, res) {
-    console.log(req.body);
     bcrypt.hash(req.body.password, salt, function(err, hash) {
-        // console.log(hash);
         User.findOne({
             where: {
                 username: req.body.username
             }
         }).then(function (usr) {
-            console.log((usr.password == hash));
-            if(usr.password == hash){
+            if(usr.password === hash){
                     res.setHeader('Content-Type', 'application/json');
-                    // res.statusText = JSON.stringify(usr);
                     if (req.body.token)
                     {
                         NotificationKey.create({
@@ -215,8 +227,6 @@ app.post('/registerDevice', function(req, res) {
             uid: body.uid
         }
     }).then(alarm => {
-      // User.findOne({where:{id: body.user}}).then((user) => {
-        // alarm.setUser(user);
         res.status(200).send(JSON.stringify({message: "Created successfully", alarm: alarm}));
         return;
       // });
@@ -377,70 +387,15 @@ app.get('/download', function (req, res) {
 });
 
 app.post('/triggerAlarm', function (req, res) {
-    console.log(JSON.stringify(req.body));
-    console.log(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
-            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${req.body.alarm}`);
-    Alarm.update({status: "triggered", detectedAt: sequelize.fn('NOW')}, {
-      where: {
-        uid: req.body.alarm
-      }
-    })
-      .then(success => {
-          // sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
-          //   alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id
-          //   WHERE alarms.id = ${req.body.alarm}`)
-          sequelize.query(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
-            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${req.body.alarm}`)
-              .spread((query, meta) => {
-                    console.log(JSON.stringify(query));
-                  let alarm = {
-                      id: query[0].id,
-                      uid: query[0].uid,
-                      name: query[0].name,
-                      addressName: query[0].addressName,
-                      status: query[0].status,
-                      comments: query[0].comments,
-                      detectedAt: query[0].detectedAt,
-                  };
-                  console.log(JSON.stringify(alarm));
-                    let messages = [];
-                    query.forEach(user => {
-                      io.sockets.in(user.userId).emit('trigger', JSON.stringify(alarm));
-                      let pushKey = user.key;
-                      if (Expo.isExpoPushToken(pushKey)){
-                          messages.push({
-                              to: pushKey,
-                              sound: 'default',
-                              body: `Alarm ${user.name} triggered`,
-                              data: {alarm: alarm}
-                          })
-                      }
-                    });
-                    console.log(messages);
-                    let chunks = expo.chunkPushNotifications(messages);
-                    let tickets = [];
-                    (async () => {
-                      // Send the chunks to the Expo push notification service. There are
-                      // different strategies you could use. A simple one is to send one chunk at a
-                      // time, which nicely spreads the load out over time:
-                      for (let chunk of chunks) {
-                          try {
-                              let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-                              console.log(ticketChunk);
-                              tickets.push(...ticketChunk);
-                              // NOTE: If a ticket contains an error code in ticket.details.error, you
-                              // must handle it appropriately. The error codes are listed in the Expo
-                              // documentation:
-                              // https://docs.expo.io/versions/latest/guides/push-notifications#response-format
-                          } catch (error) {
-                              console.error(error);
-                          }
-                      }
-                    })();
-                    updateStations(alarm).then(res.end());
-              });
-      });
+    updateUsers(req.body.alarm)
+        .then(() =>
+            updateStations().then( () =>
+                res.end()
+            )
+        );
 });
+
+
 
 app.post('/fire/dispatchCrew', function (req, res) {
     Alarm.update({status: "dispatched"}, {
@@ -486,29 +441,9 @@ app.post('/addPushToken', function(req, res) {
 });
 
 app.post('*/cancelAlarm', function(req, res) {
-  Alarm.update({status: 'connected'}, {
-    where: {
-      id: req.body.id
-    }
-  }).then((ret) => {
-      Alarm.findOne({
-          where: {
-              id: req.body.id
-          },
-          include: [
-              {
-                  model: AlarmRegistration,
-                  include: [ User ]
-              }
-          ]
-      }).then(alarm => {
-          alarm.dataValues.alarm_registrations.forEach(user => {
-              io.sockets.in(user.user.dataValues.id).emit('cancel', JSON.stringify(alarm));
-          });
-        updateStations(alarm).then(res.status(200).send(JSON.stringify({message: "successful", res: alarm})));
+  cancelAlarm(req.body.id).then(alarm => {
+        updateStations().then(res.status(200).send(JSON.stringify({message: "successful", res: alarm})));
       });
-
-  });
 });
 
 app.post('/fire/login', function (req, res) {
@@ -518,7 +453,7 @@ app.post('/fire/login', function (req, res) {
                 email: req.body.email
             }
         }).then(serv => {
-            if (serv.password === hash){
+            if (serv && serv.password === hash){
                 res.status(200).send(JSON.stringify({message: "correct", user: serv}));
             } else {
                 res.status(400).send(JSON.stringify({message: "incorrect"}))
@@ -619,7 +554,7 @@ async function listFires(id) {
     });
 }
 
-async function updateStations(alarm) {
+async function updateStations() {
     return new Promise(function (resolve, reject) {
         let servs = [];
        EmergencyService.findAll()
@@ -628,7 +563,103 @@ async function updateStations(alarm) {
                     listFires(serv.id).then((alarms) => {
                         io.sockets.in(`fire${serv.id}`).emit('alarmUpdate', JSON.stringify({alarms: alarms}))
                     });
-                })
+                });
+               resolve();
            })
+    });
+}
+
+async function updateUsers(alarmId) {
+    return new Promise(function (resolve, reject) {
+        console.log(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
+            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${alarmId}`);
+        Alarm.update({status: "triggered", detectedAt: sequelize.fn('NOW')}, {
+            where: {
+                uid: alarmId
+            }
+        })
+            .then(success => {
+                // sequelize.query(`SELECT users.id as userId, users.username, notification_keys.key, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
+                //   alarms on alarms.id = alarm_registrations.alarmId JOIN notification_keys on notification_keys.userId = users.id
+                //   WHERE alarms.id = ${req.body.alarm}`)
+                sequelize.query(`SELECT users.id as userId, users.username, alarms.* FROM users JOIN alarm_registrations on alarm_registrations.userId = users.id JOIN
+            alarms on alarms.id = alarm_registrations.alarmId WHERE alarms.uid = ${alarmId}`)
+                    .spread((query, meta) => {
+                        console.log(JSON.stringify(query));
+                        let alarm = {
+                            id: query[0].id,
+                            uid: query[0].uid,
+                            name: query[0].name,
+                            addressName: query[0].addressName,
+                            status: query[0].status,
+                            comments: query[0].comments,
+                            detectedAt: query[0].detectedAt,
+                        };
+                        console.log(JSON.stringify(alarm));
+                        let messages = [];
+                        query.forEach(user => {
+                            io.sockets.in(user.userId).emit('trigger', JSON.stringify(alarm));
+                            let pushKey = user.key;
+                            if (Expo.isExpoPushToken(pushKey)){
+                                messages.push({
+                                    to: pushKey,
+                                    sound: 'default',
+                                    body: `Alarm ${user.name} triggered`,
+                                    data: {alarm: alarm}
+                                })
+                            }
+                        });
+                        resolve();
+                        // console.log(messages);
+                        // let chunks = expo.chunkPushNotifications(messages);
+                        // let tickets = [];
+                        // (async () => {
+                        //   // Send the chunks to the Expo push notification service. There are
+                        //   // different strategies you could use. A simple one is to send one chunk at a
+                        //   // time, which nicely spreads the load out over time:
+                        //   for (let chunk of chunks) {
+                        //       try {
+                        //           let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+                        //           console.log(ticketChunk);
+                        //           tickets.push(...ticketChunk);
+                        //           // NOTE: If a ticket contains an error code in ticket.details.error, you
+                        //           // must handle it appropriately. The error codes are listed in the Expo
+                        //           // documentation:
+                        //           // https://docs.expo.io/versions/latest/guides/push-notifications#response-format
+                        //       } catch (error) {
+                        //           console.error(error);
+                        //       }
+                        //   }
+                        // })();
+                    });
+            });
+    })
+}
+
+async function cancelAlarm(alarmId) {
+
+    return new Promise(function (resolve, reject) {
+        Alarm.update({status: 'connected'}, {
+            where: {
+                id: alarmId
+            }
+        }).then((ret) => {
+            Alarm.findOne({
+                where: {
+                    id: alarmId
+                },
+                include: [
+                    {
+                        model: AlarmRegistration,
+                        include: [ User ]
+                    }
+                ]
+            }).then(alarm => {
+                alarm.dataValues.alarm_registrations.forEach(user => {
+                    io.sockets.in(user.user.dataValues.id).emit('cancel', JSON.stringify(alarm));
+                });
+            });
+            resolve(alarm);
+    });
     });
 }

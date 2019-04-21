@@ -24,6 +24,7 @@
     "expo-server-sdk": "^3.1.0",
     "express": "^4.16.4",
     "geo-distance": "^0.2.0",
+    "mqtt": "^2.18.8",
     "mysql2": "^1.6.4",
     "react": "^16.7.0",
     "sequelize": "^4.42.0",

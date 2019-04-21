@@ -641,7 +641,7 @@ async function cancelAlarm(alarmId) {
     return new Promise(function (resolve, reject) {
         Alarm.update({status: 'connected'}, {
             where: {
-                id: alarmId
+                uid: alarmId
             }
         }).then((ret) => {
             Alarm.findOne({

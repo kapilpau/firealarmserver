@@ -50,14 +50,12 @@ mqtt_client.on('message', function (topic, message) {
     if (topic === "trigger") {
         updateUsers(message.toString())
             .then(() =>
-                updateStations().then( () =>
-                    res.end()
-                )
+                updateStations()
             );
     } else if (topic === "cancel") {
-        cancelAlarm(parseInt(message.toString())).then(() => {
-            updateStations();
-        });
+        cancelAlarm(message.toString()).then(() =>
+            updateStations()
+        );
     }
 });
 

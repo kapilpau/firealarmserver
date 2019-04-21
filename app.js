@@ -46,8 +46,8 @@ mqtt_client.on('connect', function () {
 
 mqtt_client.on('message', function (topic, message) {
 
+    console.log(message.toString());
     if (topic === "trigger") {
-        console.log(message.toString());
         updateUsers(parseInt(message.toString()))
             .then(() =>
                 updateStations().then( () =>
@@ -637,7 +637,7 @@ async function updateUsers(alarmId) {
 }
 
 async function cancelAlarm(alarmId) {
-
+    console.log(`Cancelling ${alarmId}`);
     return new Promise(function (resolve, reject) {
         Alarm.update({status: 'connected'}, {
             where: {

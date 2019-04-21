@@ -655,6 +655,7 @@ async function cancelAlarm(alarmId) {
                     }
                 ]
             }).then(alarm => {
+                console.log(JSON.stringify(alarm));
                 alarm.dataValues.alarm_registrations.forEach(user => {
                     io.sockets.in(user.user.dataValues.id).emit('cancel', JSON.stringify(alarm));
                 });

@@ -48,7 +48,7 @@ mqtt_client.on('message', function (topic, message) {
 
     console.log(message.toString());
     if (topic === "trigger") {
-        updateUsers(parseInt(message.toString()))
+        updateUsers(message.toString())
             .then(() =>
                 updateStations().then( () =>
                     res.end()

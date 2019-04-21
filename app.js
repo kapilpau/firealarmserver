@@ -639,11 +639,13 @@ async function updateUsers(alarmId) {
 async function cancelAlarm(alarmId) {
     console.log(`Cancelling ${alarmId}`);
     return new Promise(function (resolve, reject) {
+        console.log("jnkjsnkjs");
         Alarm.update({status: 'connected'}, {
             where: {
                 uid: alarmId
             }
         }).then((ret) => {
+            console.log("jnfijsfn");
             Alarm.findOne({
                 where: {
                     uid: alarmId

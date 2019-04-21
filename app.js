@@ -646,7 +646,7 @@ async function cancelAlarm(alarmId) {
         }).then((ret) => {
             Alarm.findOne({
                 where: {
-                    id: alarmId
+                    uid: alarmId
                 },
                 include: [
                     {

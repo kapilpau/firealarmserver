@@ -658,8 +658,8 @@ async function cancelAlarm(alarmId) {
                 alarm.dataValues.alarm_registrations.forEach(user => {
                     io.sockets.in(user.user.dataValues.id).emit('cancel', JSON.stringify(alarm));
                 });
+                resolve(alarm);
             });
-            resolve(alarm);
     });
     });
 }
